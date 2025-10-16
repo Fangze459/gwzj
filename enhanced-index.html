@@ -1,0 +1,2279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商品展示系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            scroll-behavior: smooth;
+        }
+        .product-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .btn {
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        .sidebar-link {
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .sidebar-link:hover {
+            background-color: rgba(59, 130, 246, 0.1);
+        }
+        .sidebar-link.active {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+            border-left: 3px solid #3b82f6;
+        }
+        .modal {
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            transform: translateY(-20px);
+            transition: transform 0.3s ease;
+        }
+        .modal.active .modal-content {
+            transform: translateY(0);
+        }
+        .spinner {
+            border-top-color: #3b82f6;
+            animation: spinner 0.8s linear infinite;
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .crawler-log {
+            background-color: #f8fafc;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.875rem;
+            border: 1px solid #e2e8f0;
+            margin-top: 1rem;
+        }
+        .log-entry {
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+        .log-info { color: #3b82f6; }
+        .log-success { color: #10b981; }
+        .log-error { color: #ef4444; }
+        .image-gallery {
+            display: flex;
+            overflow-x: auto;
+            gap: 0.5rem;
+            padding-bottom: 0.5rem;
+        }
+        .image-gallery img {
+            height: 100px;
+            object-fit: cover;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        .image-gallery img:hover {
+            transform: scale(1.05);
+        }
+        .source-link {
+            color: #3b82f6;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+        }
+        .source-link:hover {
+            color: #2563eb;
+            text-decoration: underline;
+        }
+        .source-badge {
+            font-size: 0.75rem;
+            padding: 0.125rem 0.375rem;
+            border-radius: 9999px;
+            margin-left: 0.5rem;
+        }
+        .main-image-container {
+            position: relative;
+            cursor: zoom-in;
+        }
+        .image-zoom-modal {
+            opacity: 0;
+            visibility: hidden;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .image-zoom-modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .image-zoom-content {
+            max-width: 90%;
+            max-height: 90%;
+            position: relative;
+        }
+        .image-zoom-content img {
+            max-width: 100%;
+            max-height: 80vh;
+            object-fit: contain;
+        }
+        .close-zoom {
+            position: absolute;
+            top: -40px;
+            right: 0;
+            color: white;
+            font-size: 2rem;
+            cursor: pointer;
+        }
+        .gallery-thumbnail {
+            border: 2px solid transparent;
+        }
+        .gallery-thumbnail.active {
+            border-color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+    <!-- 用户界面 -->
+    <div id="user-interface" class="min-h-screen">
+        <!-- 导航栏 -->
+        <header class="bg-white shadow-sm sticky top-0 z-30">
+            <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+                <div class="flex items-center">
+                    <i class="fas fa-shopping-bag text-2xl text-blue-600 mr-3"></i>
+                    <h1 class="text-xl font-bold text-gray-800">商品展示系统</h1>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <div class="relative hidden md:block">
+                        <input id="user-search" type="text" placeholder="搜索商品..." 
+                            class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-xs">
+                        <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                    
+                    <button id="admin-login-btn" class="btn bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow">
+                        <i class="fas fa-user-shield mr-2"></i>管理登录
+                    </button>
+                </div>
+            </div>
+        </header>
+        
+        <!-- 移动端搜索栏 -->
+        <div class="bg-white shadow-sm px-4 py-3 md:hidden">
+            <div class="relative">
+                <input id="mobile-user-search" type="text" placeholder="搜索商品..." 
+                    class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+            </div>
+        </div>
+        
+        <!-- 主内容区 -->
+        <main class="container mx-auto px-4 py-8">
+            <!-- 商品列表 -->
+            <section class="mb-12">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">商品列表</h2>
+                
+                <div id="products-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <!-- 商品卡片将通过JS动态生成 -->
+                </div>
+                
+                <div id="no-products" class="hidden py-16 text-center">
+                    <i class="fas fa-box-open text-5xl text-gray-300 mb-4"></i>
+                    <p class="text-gray-500 text-lg">暂无商品数据</p>
+                </div>
+            </section>
+        </main>
+        
+        <!-- 页脚 -->
+        <footer class="bg-white border-t py-8">
+            <div class="container mx-auto px-4">
+                <div class="flex flex-col md:flex-row justify-between items-center">
+                    <div class="mb-4 md:mb-0">
+                        <div class="flex items-center">
+                            <i class="fas fa-shopping-bag text-xl text-blue-600 mr-2"></i>
+                            <span class="font-bold text-gray-800">商品展示系统</span>
+                        </div>
+                        <p class="text-gray-500 text-sm mt-2">展示各类优质商品</p>
+                    </div>
+                    
+                    <div class="text-gray-500 text-sm">
+                        &copy; 2023 商品展示系统 版权所有
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- 管理员界面 -->
+    <div id="admin-interface" class="hidden h-screen overflow-hidden">
+        <div class="flex h-full overflow-hidden">
+            <!-- 侧边栏 -->
+            <aside id="admin-sidebar" class="bg-white w-64 shadow-md hidden">
+                <div class="p-6 border-b">
+                    <div class="flex items-center">
+                        <i class="fas fa-tachometer-alt text-2xl text-blue-600 mr-3"></i>
+                        <span class="text-xl font-bold text-gray-800">管理中心</span>
+                    </div>
+                </div>
+                
+                <nav class="p-4">
+                    <ul class="space-y-1">
+                        <li>
+                            <a href="#" class="sidebar-link active flex items-center px-4 py-3 text-gray-700 rounded-lg" data-page="dashboard">
+                                <i class="fas fa-home w-5 text-center mr-3"></i>
+                                <span>仪表盘</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="sidebar-link flex items-center px-4 py-3 text-gray-700 rounded-lg" data-page="products">
+                                <i class="fas fa-box w-5 text-center mr-3"></i>
+                                <span>商品管理</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="sidebar-link flex items-center px-4 py-3 text-gray-700 rounded-lg" data-page="auto-search">
+                                <i class="fas fa-search w-5 text-center mr-3"></i>
+                                <span>自动查询</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="sidebar-link flex items-center px-4 py-3 text-gray-700 rounded-lg" data-page="users">
+                                <i class="fas fa-users w-5 text-center mr-3"></i>
+                                <span>管理员管理</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+                
+                <div class="absolute bottom-0 w-64 p-4 border-t">
+                    <button id="admin-logout-btn" class="btn w-full flex items-center justify-center bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-lg">
+                        <i class="fas fa-sign-out-alt mr-2"></i>退出登录
+                    </button>
+                </div>
+            </aside>
+
+            <!-- 主内容区 -->
+            <div class="flex-1 flex flex-col overflow-hidden">
+                <!-- 顶部导航 -->
+                <header class="bg-white shadow-sm h-16 flex items-center justify-between px-6">
+                    <button id="mobile-menu-btn" class="md:hidden text-gray-600 hidden">
+                        <i class="fas fa-bars text-xl"></i>
+                    </button>
+                    
+                    <div class="flex items-center">
+                        <span class="text-gray-600 mr-2 hidden md:inline-block">欢迎回来，</span>
+                        <span class="font-medium text-gray-800" id="current-admin">admin</span>
+                    </div>
+                    
+                    <button id="back-to-user-btn" class="btn bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg">
+                        <i class="fas fa-arrow-left mr-2"></i>返回首页
+                    </button>
+                </header>
+                
+                <!-- 页面内容 -->
+                <main class="flex-1 overflow-y-auto p-6 bg-gray-50">
+                    <!-- 登录页面 -->
+                    <div id="admin-login-page" class="h-full flex items-center justify-center">
+                        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 transform transition-all">
+                            <div class="text-center mb-6">
+                                <i class="fas fa-lock text-4xl text-blue-600 mb-4"></i>
+                                <h2 class="text-xl font-bold text-gray-800">管理员登录</h2>
+                            </div>
+                            <form id="admin-login-form">
+                                <div class="mb-4">
+                                    <label for="admin-username" class="block text-sm font-medium text-gray-700 mb-1">用户名</label>
+                                    <input type="text" id="admin-username" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="请输入用户名" required>
+                                </div>
+                                <div class="mb-6">
+                                    <label for="admin-password" class="block text-sm font-medium text-gray-700 mb-1">密码</label>
+                                    <input type="password" id="admin-password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="请输入密码" required>
+                                </div>
+                                <div class="text-red-500 text-sm mb-4 hidden" id="admin-login-error"></div>
+                                <button type="submit" class="btn w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg shadow">
+                                    <i class="fas fa-sign-in-alt mr-2"></i>登录
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <!-- 仪表盘页面 -->
+                    <div id="dashboard-page" class="hidden">
+                        <div class="mb-6">
+                            <h1 class="text-2xl font-bold text-gray-800">仪表盘</h1>
+                            <p class="text-gray-600 mt-1">欢迎使用商品管理系统</p>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                            <div class="bg-white rounded-xl shadow p-6">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-gray-500 text-sm">商品总数</p>
+                                        <h3 class="text-3xl font-bold text-gray-800 mt-1" id="total-products">0</h3>
+                                    </div>
+                                    <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                                        <i class="fas fa-box text-blue-600 text-xl"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white rounded-xl shadow p-6">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-gray-500 text-sm">管理员总数</p>
+                                        <h3 class="text-3xl font-bold text-gray-800 mt-1" id="total-admin-users">0</h3>
+                                    </div>
+                                    <div class="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                                        <i class="fas fa-users text-green-600 text-xl"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white rounded-xl shadow p-6">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-gray-500 text-sm">最高价格</p>
+                                        <h3 class="text-3xl font-bold text-gray-800 mt-1" id="max-price">¥0</h3>
+                                    </div>
+                                    <div class="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                                        <i class="fas fa-tags text-purple-600 text-xl"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white rounded-xl shadow p-6">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-gray-500 text-sm">最低价格</p>
+                                        <h3 class="text-3xl font-bold text-gray-800 mt-1" id="min-price">¥0</h3>
+                                    </div>
+                                    <div class="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center">
+                                        <i class="fas fa-tag text-yellow-600 text-xl"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 商品管理页面 -->
+                    <div id="admin-products-page" class="hidden">
+                        <div class="mb-6">
+                            <h1 class="text-2xl font-bold text-gray-800">商品管理</h1>
+                            <p class="text-gray-600 mt-1">管理所有商品信息</p>
+                        </div>
+                        
+                        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                            <div class="relative w-full max-w-md">
+                                <input id="admin-product-search" type="text" placeholder="搜索商品..." 
+                                    class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            </div>
+                            <button id="add-product-btn" class="btn ml-0 sm:ml-4 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow">
+                                <i class="fas fa-plus mr-2"></i>添加商品
+                            </button>
+                        </div>
+                        
+                        <div class="bg-white rounded-xl shadow overflow-hidden">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">图片</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">名称</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">型号</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">价格</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">来源</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="admin-products-table-body">
+                                    <!-- 商品数据将通过JS动态生成 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- 自动查询页面 -->
+                    <div id="auto-search-page" class="hidden">
+                        <div class="mb-6">
+                            <h1 class="text-2xl font-bold text-gray-800">商品自动查询</h1>
+                            <p class="text-gray-600 mt-1">自动从网络查询商品信息</p>
+                        </div>
+                        
+                        <div class="bg-white rounded-xl shadow p-6 mb-6">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">查询设置</h3>
+                            <form id="auto-search-form" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div>
+                                    <label for="search-keyword" class="block text-sm font-medium text-gray-700 mb-1">查询关键词 <span class="text-red-500">*</span></label>
+                                    <input type="text" id="search-keyword" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如：智能手机" required>
+                                </div>
+                                <div>
+                                    <label for="search-count" class="block text-sm font-medium text-gray-700 mb-1">查询数量 <span class="text-red-500">*</span></label>
+                                    <input type="number" id="search-count" min="1" max="20" value="5" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                                </div>
+                                <div>
+                                    <label for="search-source" class="block text-sm font-medium text-gray-700 mb-1">查询来源</label>
+                                    <select id="search-source" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="all">综合搜索</option>
+                                        <option value="jd">京东</option>
+                                        <option value="taobao">淘宝</option>
+                                        <option value="tmall">天猫</option>
+                                        <option value="suning">苏宁易购</option>
+                                    </select>
+                                </div>
+                            </form>
+                            
+                            <div class="mt-4 flex justify-center">
+                                <button type="button" id="start-search-btn" class="btn bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg shadow">
+                                    <i class="fas fa-search mr-2"></i>开始查询
+                                </button>
+                            </div>
+                            
+                            <!-- 查询状态和日志 -->
+                            <div id="search-status" class="mt-6 hidden">
+                                <div class="flex items-center text-blue-600">
+                                    <div class="w-6 h-6 border-2 border-blue-200 rounded-full spinner mr-3"></div>
+                                    <p id="search-status-text">正在查询商品信息，请稍候...</p>
+                                </div>
+                                
+                                <div class="crawler-log" id="crawler-log">
+                                    <!-- 日志将动态生成 -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 查询结果 -->
+                        <div id="search-results-container" class="hidden">
+                            <div class="bg-white rounded-xl shadow p-6 mb-6">
+                                <h3 class="text-lg font-semibold text-gray-800 mb-4">查询结果（共 <span id="results-count">0</span> 条）</h3>
+                                <div id="search-results" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    <!-- 查询结果将通过JS动态生成 -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 用户管理页面 -->
+                    <div id="admin-users-page" class="hidden">
+                        <div class="mb-6">
+                            <h1 class="text-2xl font-bold text-gray-800">管理员管理</h1>
+                            <p class="text-gray-600 mt-1">管理系统管理员账户</p>
+                        </div>
+                        
+                        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                            <div class="relative w-full max-w-md">
+                                <input id="admin-user-search" type="text" placeholder="搜索管理员..." 
+                                    class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            </div>
+                            <button id="add-admin-user-btn" class="btn ml-0 sm:ml-4 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow">
+                                <i class="fas fa-plus mr-2"></i>添加管理员
+                            </button>
+                        </div>
+                        
+                        <div class="bg-white rounded-xl shadow overflow-hidden">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">用户名</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="admin-users-table-body">
+                                    <!-- 用户数据将通过JS动态生成 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+
+        <!-- 移动端侧边栏 -->
+        <div id="mobile-sidebar" class="fixed inset-0 bg-black/50 z-50 hidden">
+            <div class="bg-white h-full w-64 shadow-xl transform transition-transform">
+                <div class="p-6 border-b flex justify-between items-center">
+                    <div class="flex items-center">
+                        <i class="fas fa-tachometer-alt text-2xl text-blue-600 mr-3"></i>
+                        <span class="text-xl font-bold text-gray-800">管理中心</span>
+                    </div>
+                    <button id="close-mobile-sidebar" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                
+                <nav class="p-4">
+                    <ul class="space-y-1">
+                        <li>
+                            <a href="#" class="sidebar-link active flex items-center px-4 py-3 text-gray-700 rounded-lg" data-page="dashboard">
+                                <i class="fas fa-home w-5 text-center mr-3"></i>
+                                <span>仪表盘</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="sidebar-link flex items-center px-4 py-3 text-gray-700 rounded-lg" data-page="products">
+                                <i class="fas fa-box w-5 text-center mr-3"></i>
+                                <span>商品管理</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="sidebar-link flex items-center px-4 py-3 text-gray-700 rounded-lg" data-page="auto-search">
+                                <i class="fas fa-search w-5 text-center mr-3"></i>
+                                <span>自动查询</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="sidebar-link flex items-center px-4 py-3 text-gray-700 rounded-lg" data-page="users">
+                                <i class="fas fa-users w-5 text-center mr-3"></i>
+                                <span>管理员管理</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+
+    <!-- 商品详情模态框 -->
+    <div id="product-detail-modal" class="modal fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div class="modal-content bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800" id="detail-product-name"></h2>
+                    <button id="close-detail-modal" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <!-- 主图片 -->
+                        <div class="main-image-container mb-4">
+                            <img id="detail-product-image" src="" alt="" class="w-full h-auto rounded-lg shadow-md">
+                        </div>
+                        
+                        <!-- 图片画廊 -->
+                        <div id="detail-image-gallery" class="image-gallery">
+                            <!-- 图片缩略图将动态生成 -->
+                        </div>
+                        
+                        <!-- 来源链接 -->
+                        <div class="mt-4">
+                            <a id="detail-product-url" href="#" target="_blank" class="source-link">
+                                <i class="fas fa-external-link-alt mr-1"></i>
+                                查看原始商品页面
+                            </a>
+                            <span id="detail-product-source" class="source-badge bg-gray-100 text-gray-800"></span>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="mb-4">
+                            <h3 class="text-sm text-gray-500">型号</h3>
+                            <p class="text-lg font-medium text-gray-800 mt-1" id="detail-product-model"></p>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <h3 class="text-sm text-gray-500">价格</h3>
+                            <p class="text-2xl font-bold text-blue-600" id="detail-product-price"></p>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <h3 class="text-sm text-gray-500">颜色</h3>
+                            <div class="flex items-center mt-1">
+                                <span id="detail-product-color-indicator" class="w-5 h-5 rounded-full inline-block mr-2"></span>
+                                <span class="text-gray-800" id="detail-product-color"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-6">
+                            <h3 class="text-sm text-gray-500">简介</h3>
+                            <p class="text-gray-800" id="detail-product-brief"></p>
+                        </div>
+                        
+                        <div>
+                            <h3 class="text-sm text-gray-500 mb-2">详细描述</h3>
+                            <div class="bg-gray-50 p-4 rounded-lg text-gray-800 whitespace-pre-line" id="detail-product-description"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图片放大查看模态框 -->
+    <div id="image-zoom-modal" class="image-zoom-modal">
+        <div class="image-zoom-content">
+            <span class="close-zoom">&times;</span>
+            <img id="zoomed-image" src="" alt="放大查看图片">
+        </div>
+    </div>
+
+    <!-- 添加/编辑商品模态框 -->
+    <div id="product-modal" class="modal fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div class="modal-content bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-800" id="product-modal-title">添加商品</h2>
+                <button id="close-product-modal" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <form id="product-form">
+                <input type="hidden" id="product-id">
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">商品图片</label>
+                    <div class="flex flex-col">
+                        <div class="main-image-container">
+                            <img id="product-image-preview" src="https://picsum.photos/seed/placeholder/400/300" alt="商品图片预览" 
+                                class="w-full h-48 object-cover rounded-lg border border-gray-200">
+                        </div>
+                        
+                        <!-- 图片画廊 -->
+                        <div id="product-image-gallery" class="image-gallery mt-3">
+                            <div class="add-image-btn w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center cursor-pointer border-2 border-dashed border-gray-300 hover:bg-gray-200 transition-colors">
+                                <i class="fas fa-plus text-gray-400"></i>
+                            </div>
+                        </div>
+                        
+                        <input type="file" id="product-image-upload" accept="image/*" class="hidden" multiple>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="product-name" class="block text-sm font-medium text-gray-700 mb-1">商品名称 <span class="text-red-500">*</span></label>
+                    <input type="text" id="product-name" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="请输入商品名称" required>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="product-model" class="block text-sm font-medium text-gray-700 mb-1">型号 <span class="text-red-500">*</span></label>
+                    <input type="text" id="product-model" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="请输入商品型号" required>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="product-price" class="block text-sm font-medium text-gray-700 mb-1">价格 <span class="text-red-500">*</span></label>
+                    <input type="number" step="0.01" min="0" id="product-price" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="请输入商品价格" required>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="product-color" class="block text-sm font-medium text-gray-700 mb-1">颜色 <span class="text-red-500">*</span></label>
+                    <input type="text" id="product-color" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="请输入商品颜色" required>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="product-brief" class="block text-sm font-medium text-gray-700 mb-1">商品简介 <span class="text-red-500">*</span></label>
+                    <input type="text" id="product-brief" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="请输入商品简介" required>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="product-url" class="block text-sm font-medium text-gray-700 mb-1">商品来源网址</label>
+                    <input type="url" id="product-url" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如：https://www.example.com/product">
+                </div>
+                
+                <div class="mb-4">
+                    <label for="product-source" class="block text-sm font-medium text-gray-700 mb-1">商品来源平台</label>
+                    <select id="product-source" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">请选择来源平台</option>
+                        <option value="京东">京东</option>
+                        <option value="淘宝">淘宝</option>
+                        <option value="天猫">天猫</option>
+                        <option value="苏宁易购">苏宁易购</option>
+                        <option value="其他">其他</option>
+                    </select>
+                </div>
+                
+                <div class="mb-6">
+                    <label for="product-description" class="block text-sm font-medium text-gray-700 mb-1">详细描述</label>
+                    <textarea id="product-description" rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="请输入商品详细描述"></textarea>
+                </div>
+                
+                <div class="text-red-500 text-sm mb-4 hidden" id="product-error"></div>
+                <button type="submit" class="btn w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg shadow">
+                    <i class="fas fa-save mr-2"></i>保存
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 添加/编辑管理员模态框 -->
+    <div id="admin-user-modal" class="modal fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div class="modal-content bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-800" id="admin-user-modal-title">添加管理员</h2>
+                <button id="close-admin-user-modal" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <form id="admin-user-form">
+                <input type="hidden" id="admin-user-id">
+                <div class="mb-4">
+                    <label for="admin-user-username" class="block text-sm font-medium text-gray-700 mb-1">用户名 <span class="text-red-500">*</span></label>
+                    <input type="text" id="admin-user-username" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="请输入用户名" required>
+                </div>
+                <div class="mb-6">
+                    <label for="admin-user-password" class="block text-sm font-medium text-gray-700 mb-1">密码 <span class="text-red-500">*</span></label>
+                    <input type="password" id="admin-user-password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="请输入密码" required>
+                </div>
+                <div class="text-red-500 text-sm mb-4 hidden" id="admin-user-error"></div>
+                <button type="submit" class="btn w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg shadow">
+                    <i class="fas fa-save mr-2"></i>保存
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 确认删除模态框 -->
+    <div id="confirm-modal" class="modal fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div class="modal-content bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div class="text-center mb-6">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 mb-4">
+                    <i class="fas fa-exclamation-triangle text-2xl text-red-500"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-800">确认删除</h3>
+                <p class="text-gray-600 mt-2" id="confirm-message">您确定要删除这项吗？此操作无法撤销。</p>
+            </div>
+            <div class="flex space-x-3">
+                <button id="cancel-delete" class="btn flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-lg">
+                    取消
+                </button>
+                <button id="confirm-delete" class="btn flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg">
+                    <i class="fas fa-trash mr-2"></i>删除
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 等待DOM完全加载后执行初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 数据存储 - 新增了images、url和source字段
+            let products = JSON.parse(localStorage.getItem('products')) || [
+                { 
+                    id: 1, 
+                    name: "智能手机", 
+                    model: "X1 Pro", 
+                    price: 5999, 
+                    color: "黑色", 
+                    brief: "高性能旗舰手机，搭载最新处理器",
+                    description: "最新款智能手机，搭载先进处理器和高清摄像头，支持5G网络，拥有超长续航能力。\n\n6.7英寸超视网膜XDR显示屏，120Hz自适应刷新率，带来流畅的视觉体验。",
+                    images: [
+                        "https://picsum.photos/seed/phone1/800/600",
+                        "https://picsum.photos/seed/phone2/800/600",
+                        "https://picsum.photos/seed/phone3/800/600"
+                    ],
+                    url: "https://example.com/smartphone-x1-pro",
+                    source: "京东"
+                },
+                { 
+                    id: 2, 
+                    name: "笔记本电脑", 
+                    model: "Book Air", 
+                    price: 7999, 
+                    color: "银色", 
+                    brief: "轻薄便携，长续航笔记本电脑",
+                    description: "轻薄便携，长续航笔记本电脑，采用最新一代处理器，性能强劲。\n\n13.3英寸视网膜显示屏，色彩精准。全尺寸背光键盘，带来舒适的输入体验。",
+                    images: [
+                        "https://picsum.photos/seed/laptop1/800/600",
+                        "https://picsum.photos/seed/laptop2/800/600"
+                    ],
+                    url: "https://example.com/laptop-book-air",
+                    source: "苹果官网"
+                },
+                { 
+                    id: 3, 
+                    name: "智能手表", 
+                    model: "Watch Series 7", 
+                    price: 2999, 
+                    color: "金色", 
+                    brief: "全面健康监测，支持多种运动模式",
+                    description: "新一代智能手表，拥有更大的显示屏和更强大的健康监测功能。\n\n支持心率监测、血氧检测、睡眠分析等多种健康功能。",
+                    images: [
+                        "https://picsum.photos/seed/watch1/800/600",
+                        "https://picsum.photos/seed/watch2/800/600",
+                        "https://picsum.photos/seed/watch3/800/600",
+                        "https://picsum.photos/seed/watch4/800/600"
+                    ],
+                    url: "https://example.com/smartwatch-series7",
+                    source: "淘宝"
+                }
+            ];
+
+            let adminUsers = JSON.parse(localStorage.getItem('adminUsers')) || [
+                { id: 1, username: "admin", password: "12345678" }
+            ];
+
+            // 当前登录的管理员
+            let currentAdmin = JSON.parse(localStorage.getItem('currentAdmin')) || null;
+            
+            // 存储自动查询的结果
+            let searchResults = [];
+
+            // 保存数据到localStorage
+            function saveDataToLocalStorage() {
+                localStorage.setItem('products', JSON.stringify(products));
+                localStorage.setItem('adminUsers', JSON.stringify(adminUsers));
+                if (currentAdmin) {
+                    localStorage.setItem('currentAdmin', JSON.stringify(currentAdmin));
+                } else {
+                    localStorage.removeItem('currentAdmin');
+                }
+            }
+
+            // DOM 元素引用
+            const elements = {
+                userInterface: document.getElementById('user-interface'),
+                adminInterface: document.getElementById('admin-interface'),
+                adminLoginBtn: document.getElementById('admin-login-btn'),
+                backToUserBtn: document.getElementById('back-to-user-btn'),
+                productsGrid: document.getElementById('products-grid'),
+                noProducts: document.getElementById('no-products'),
+                userSearch: document.getElementById('user-search'),
+                mobileUserSearch: document.getElementById('mobile-user-search'),
+                productDetailModal: document.getElementById('product-detail-modal'),
+                closeDetailModal: document.getElementById('close-detail-modal'),
+                detailImageGallery: document.getElementById('detail-image-gallery'),
+                detailProductUrl: document.getElementById('detail-product-url'),
+                detailProductSource: document.getElementById('detail-product-source'),
+                
+                // 图片放大相关元素
+                imageZoomModal: document.getElementById('image-zoom-modal'),
+                zoomedImage: document.getElementById('zoomed-image'),
+                closeZoom: document.querySelector('.close-zoom'),
+                
+                // 管理员界面元素
+                adminLoginPage: document.getElementById('admin-login-page'),
+                dashboardPage: document.getElementById('dashboard-page'),
+                adminProductsPage: document.getElementById('admin-products-page'),
+                autoSearchPage: document.getElementById('auto-search-page'),
+                adminUsersPage: document.getElementById('admin-users-page'),
+                sidebarLinks: document.querySelectorAll('.sidebar-link'),
+                adminLoginForm: document.getElementById('admin-login-form'),
+                adminLoginError: document.getElementById('admin-login-error'),
+                adminLogoutBtn: document.getElementById('admin-logout-btn'),
+                currentAdminEl: document.getElementById('current-admin'),
+                mobileMenuBtn: document.getElementById('mobile-menu-btn'),
+                mobileSidebar: document.getElementById('mobile-sidebar'),
+                closeMobileSidebar: document.getElementById('close-mobile-sidebar'),
+                adminProductsTableBody: document.getElementById('admin-products-table-body'),
+                adminUsersTableBody: document.getElementById('admin-users-table-body'),
+                addProductBtn: document.getElementById('add-product-btn'),
+                addAdminUserBtn: document.getElementById('add-admin-user-btn'),
+                productModal: document.getElementById('product-modal'),
+                closeProductModal: document.getElementById('close-product-modal'),
+                productForm: document.getElementById('product-form'),
+                productModalTitle: document.getElementById('product-modal-title'),
+                productId: document.getElementById('product-id'),
+                productError: document.getElementById('product-error'),
+                adminUserModal: document.getElementById('admin-user-modal'),
+                closeAdminUserModal: document.getElementById('close-admin-user-modal'),
+                adminUserForm: document.getElementById('admin-user-form'),
+                adminUserModalTitle: document.getElementById('admin-user-modal-title'),
+                adminUserId: document.getElementById('admin-user-id'),
+                adminUserError: document.getElementById('admin-user-error'),
+                confirmModal: document.getElementById('confirm-modal'),
+                cancelDelete: document.getElementById('cancel-delete'),
+                confirmDelete: document.getElementById('confirm-delete'),
+                confirmMessage: document.getElementById('confirm-message'),
+                adminProductSearch: document.getElementById('admin-product-search'),
+                adminUserSearch: document.getElementById('admin-user-search'),
+                totalProductsEl: document.getElementById('total-products'),
+                totalAdminUsersEl: document.getElementById('total-admin-users'),
+                maxPriceEl: document.getElementById('max-price'),
+                minPriceEl: document.getElementById('min-price'),
+                adminSidebar: document.getElementById('admin-sidebar'),
+                
+                // 图片上传元素
+                productImageUpload: document.getElementById('product-image-upload'),
+                productImagePreview: document.getElementById('product-image-preview'),
+                productImageGallery: document.getElementById('product-image-gallery'),
+                addImageBtn: document.querySelector('.add-image-btn'),
+                
+                // 商品表单字段
+                productUrl: document.getElementById('product-url'),
+                productSource: document.getElementById('product-source'),
+                
+                // 自动查询元素
+                searchKeyword: document.getElementById('search-keyword'),
+                searchCount: document.getElementById('search-count'),
+                searchSource: document.getElementById('search-source'),
+                startSearchBtn: document.getElementById('start-search-btn'),
+                searchStatus: document.getElementById('search-status'),
+                searchStatusText: document.getElementById('search-status-text'),
+                crawlerLog: document.getElementById('crawler-log'),
+                searchResultsContainer: document.getElementById('search-results-container'),
+                searchResults: document.getElementById('search-results'),
+                resultsCount: document.getElementById('results-count')
+            };
+
+            // 验证登录状态
+            function verifyLoginStatus() {
+                return !!currentAdmin;
+            }
+
+            // 根据颜色名称获取对应的颜色代码
+            function getColorCode(colorName) {
+                const colorMap = {
+                    '黑色': '#000000',
+                    '白色': '#FFFFFF',
+                    '红色': '#FF0000',
+                    '蓝色': '#0000FF',
+                    '绿色': '#008000',
+                    '黄色': '#FFFF00',
+                    '银色': '#C0C0C0',
+                    '金色': '#FFD700',
+                    '灰色': '#808080'
+                };
+                return colorMap[colorName] || '#CCCCCC';
+            }
+
+            // 初始化页面
+            function init() {
+                renderUserProducts();
+                setupEventListeners();
+                
+                // 检查管理员是否已登录
+                if (currentAdmin) {
+                    showAdminPage('dashboard');
+                } else {
+                    showAdminLoginPage();
+                }
+            }
+
+            // 切换到用户界面
+            function showUserInterface() {
+                elements.userInterface.classList.remove('hidden');
+                elements.adminInterface.classList.add('hidden');
+                renderUserProducts();
+            }
+
+            // 切换到管理员界面
+            function showAdminInterface() {
+                elements.userInterface.classList.add('hidden');
+                elements.adminInterface.classList.remove('hidden');
+                
+                if (!verifyLoginStatus()) {
+                    showAdminLoginPage();
+                }
+            }
+
+            // 显示管理员登录页面
+            function showAdminLoginPage() {
+                elements.adminSidebar.classList.add('hidden');
+                elements.mobileMenuBtn.classList.add('hidden');
+                
+                elements.adminLoginPage.classList.remove('hidden');
+                elements.dashboardPage.classList.add('hidden');
+                elements.adminProductsPage.classList.add('hidden');
+                elements.autoSearchPage.classList.add('hidden');
+                elements.adminUsersPage.classList.add('hidden');
+            }
+
+            // 显示指定的管理员页面
+            function showAdminPage(pageName) {
+                if (!verifyLoginStatus()) {
+                    showAdminLoginPage();
+                    return;
+                }
+                
+                elements.adminSidebar.classList.remove('hidden');
+                elements.mobileMenuBtn.classList.remove('hidden');
+                
+                elements.adminLoginPage.classList.add('hidden');
+                elements.dashboardPage.classList.add('hidden');
+                elements.adminProductsPage.classList.add('hidden');
+                elements.autoSearchPage.classList.add('hidden');
+                elements.adminUsersPage.classList.add('hidden');
+                
+                // 更新侧边栏链接状态
+                elements.sidebarLinks.forEach(link => {
+                    if (link.dataset.page === pageName) {
+                        link.classList.add('active');
+                    } else {
+                        link.classList.remove('active');
+                    }
+                });
+                
+                // 显示对应的页面
+                if (pageName === 'dashboard') {
+                    elements.dashboardPage.classList.remove('hidden');
+                    updateDashboard();
+                } else if (pageName === 'products') {
+                    elements.adminProductsPage.classList.remove('hidden');
+                    renderAdminProducts();
+                } else if (pageName === 'auto-search') {
+                    elements.autoSearchPage.classList.remove('hidden');
+                    searchResults = [];
+                    elements.searchResultsContainer.classList.add('hidden');
+                    elements.searchStatus.classList.add('hidden');
+                    elements.crawlerLog.innerHTML = '';
+                } else if (pageName === 'users') {
+                    elements.adminUsersPage.classList.remove('hidden');
+                    renderAdminUsers();
+                }
+                
+                // 关闭移动端侧边栏
+                elements.mobileSidebar.classList.add('hidden');
+            }
+
+            // 渲染用户界面的商品列表
+            function renderUserProducts(searchQuery = '') {
+                let filteredProducts = products;
+                
+                // 应用搜索
+                if (searchQuery) {
+                    const lowerCaseQuery = searchQuery.toLowerCase();
+                    filteredProducts = products.filter(product => 
+                        product.name.toLowerCase().includes(lowerCaseQuery) ||
+                        product.model.toLowerCase().includes(lowerCaseQuery) ||
+                        product.color.toLowerCase().includes(lowerCaseQuery) ||
+                        product.brief.toLowerCase().includes(lowerCaseQuery) ||
+                        (product.source && product.source.toLowerCase().includes(lowerCaseQuery))
+                    );
+                }
+                
+                elements.productsGrid.innerHTML = '';
+                
+                if (filteredProducts.length === 0) {
+                    elements.noProducts.classList.remove('hidden');
+                    return;
+                }
+                
+                elements.noProducts.classList.add('hidden');
+                
+                filteredProducts.forEach(product => {
+                    // 取第一张图片作为封面图
+                    const coverImage = product.images && product.images.length > 0 
+                        ? product.images[0] 
+                        : `https://picsum.photos/seed/${product.id}/400/300`;
+                    
+                    // 显示图片数量徽章
+                    const imageCountBadge = product.images && product.images.length > 1 
+                        ? `<span class="absolute bottom-3 right-3 bg-black/60 text-white text-xs px-2 py-1 rounded-full">
+                            <i class="fas fa-images mr-1"></i>${product.images.length}
+                          </span>`
+                        : '';
+                    
+                    // 显示来源徽章
+                    const sourceBadge = product.source 
+                        ? `<span class="absolute top-3 left-3 bg-gray-800/70 text-white text-xs px-2 py-1 rounded-full">
+                            ${product.source}
+                          </span>`
+                        : '';
+                    
+                    const card = document.createElement('div');
+                    card.className = 'product-card bg-white rounded-xl shadow overflow-hidden';
+                    card.innerHTML = `
+                        <div class="relative">
+                            <img src="${coverImage}" alt="${product.name}" class="w-full h-48 object-cover">
+                            ${sourceBadge}
+                            <div class="absolute top-3 right-3 bg-blue-600 text-white text-sm font-medium px-2 py-1 rounded">
+                                ¥${product.price}
+                            </div>
+                            ${imageCountBadge}
+                        </div>
+                        <div class="p-4">
+                            <h3 class="font-bold text-lg text-gray-800 mb-1">${product.name}</h3>
+                            <p class="text-gray-500 text-sm mb-2">${product.model} | ${product.color}</p>
+                            <p class="text-gray-600 text-sm mb-4 line-clamp-2">${product.brief}</p>
+                            <button class="view-details-btn w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 rounded-lg transition-colors" data-id="${product.id}">
+                                查看详情
+                            </button>
+                        </div>
+                    `;
+                    elements.productsGrid.appendChild(card);
+                });
+                
+                // 为查看详情按钮添加事件监听
+                document.querySelectorAll('.view-details-btn').forEach(button => {
+                    button.addEventListener('click', () => {
+                        const id = parseInt(button.dataset.id);
+                        showProductDetails(id);
+                    });
+                });
+            }
+
+            // 显示商品详情
+            function showProductDetails(id) {
+                const product = products.find(p => p.id === id);
+                if (!product) return;
+                
+                // 填充基本信息
+                document.getElementById('detail-product-name').textContent = product.name;
+                document.getElementById('detail-product-model').textContent = product.model;
+                document.getElementById('detail-product-price').textContent = `¥${product.price}`;
+                document.getElementById('detail-product-color').textContent = product.color;
+                document.getElementById('detail-product-color-indicator').style.backgroundColor = getColorCode(product.color);
+                document.getElementById('detail-product-brief').textContent = product.brief;
+                document.getElementById('detail-product-description').textContent = product.description || '暂无详细描述';
+                
+                // 处理来源链接
+                const detailProductUrl = document.getElementById('detail-product-url');
+                const detailProductSource = document.getElementById('detail-product-source');
+                
+                if (product.url) {
+                    detailProductUrl.href = product.url;
+                    detailProductUrl.classList.remove('hidden');
+                } else {
+                    detailProductUrl.href = '#';
+                    detailProductUrl.classList.add('hidden');
+                }
+                
+                if (product.source) {
+                    detailProductSource.textContent = product.source;
+                    detailProductSource.classList.remove('hidden');
+                } else {
+                    detailProductSource.classList.add('hidden');
+                }
+                
+                // 处理图片画廊
+                const detailProductImage = document.getElementById('detail-product-image');
+                const detailImageGallery = document.getElementById('detail-image-gallery');
+                
+                // 清空画廊
+                detailImageGallery.innerHTML = '';
+                
+                // 设置默认图片
+                const defaultImage = `https://picsum.photos/seed/${product.id}/800/600`;
+                
+                // 显示图片画廊
+                if (product.images && product.images.length > 0) {
+                    // 设置主图为第一张
+                    detailProductImage.src = product.images[0];
+                    detailProductImage.alt = product.name;
+                    
+                    // 添加缩略图
+                    product.images.forEach((img, index) => {
+                        const thumb = document.createElement('img');
+                        thumb.src = img;
+                        thumb.alt = `${product.name} 图片 ${index + 1}`;
+                        thumb.className = `gallery-thumbnail ${index === 0 ? 'active' : ''}`;
+                        thumb.dataset.index = index;
+                        
+                        thumb.addEventListener('click', () => {
+                            // 更新主图
+                            detailProductImage.src = img;
+                            
+                            // 更新活跃状态
+                            document.querySelectorAll('.gallery-thumbnail').forEach(t => {
+                                t.classList.remove('active');
+                            });
+                            thumb.classList.add('active');
+                        });
+                        
+                        detailImageGallery.appendChild(thumb);
+                    });
+                } else {
+                    // 使用默认图片
+                    detailProductImage.src = defaultImage;
+                    detailProductImage.alt = product.name;
+                    
+                    // 添加默认缩略图
+                    const thumb = document.createElement('img');
+                    thumb.src = defaultImage;
+                    thumb.alt = product.name;
+                    thumb.className = 'gallery-thumbnail active';
+                    detailImageGallery.appendChild(thumb);
+                }
+                
+                // 显示模态框
+                elements.productDetailModal.classList.add('active');
+            }
+
+            // 更新仪表盘数据
+            function updateDashboard() {
+                if (!verifyLoginStatus()) return;
+                
+                elements.totalProductsEl.textContent = products.length;
+                elements.totalAdminUsersEl.textContent = adminUsers.length;
+                
+                if (products.length > 0) {
+                    const maxPriceProduct = products.reduce((max, product) => product.price > max.price ? product : max, products[0]);
+                    const minPriceProduct = products.reduce((min, product) => product.price < min.price ? product : min, products[0]);
+                    
+                    elements.maxPriceEl.textContent = `¥${maxPriceProduct.price}`;
+                    elements.minPriceEl.textContent = `¥${minPriceProduct.price}`;
+                } else {
+                    elements.maxPriceEl.textContent = '¥0';
+                    elements.minPriceEl.textContent = '¥0';
+                }
+            }
+
+            // 渲染管理员商品表格
+            function renderAdminProducts(searchQuery = '') {
+                if (!verifyLoginStatus()) return;
+                
+                let filteredProducts = products;
+                
+                // 应用搜索
+                if (searchQuery) {
+                    const lowerCaseQuery = searchQuery.toLowerCase();
+                    filteredProducts = products.filter(product => 
+                        product.name.toLowerCase().includes(lowerCaseQuery) ||
+                        product.model.toLowerCase().includes(lowerCaseQuery) ||
+                        product.color.toLowerCase().includes(lowerCaseQuery) ||
+                        (product.source && product.source.toLowerCase().includes(lowerCaseQuery))
+                    );
+                }
+                
+                elements.adminProductsTableBody.innerHTML = '';
+                
+                if (filteredProducts.length === 0) {
+                    elements.adminProductsTableBody.innerHTML = `
+                        <tr>
+                            <td colspan="7" class="px-6 py-10 text-center text-gray-500">
+                                <i class="fas fa-search text-3xl mb-2"></i>
+                                <p>没有找到匹配的商品</p>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                filteredProducts.forEach(product => {
+                    // 获取封面图
+                    const coverImage = product.images && product.images.length > 0 
+                        ? product.images[0] 
+                        : `https://picsum.photos/seed/${product.id}/60/60`;
+                    
+                    // 图片数量提示
+                    const imageCount = product.images && product.images.length > 0 
+                        ? product.images.length 
+                        : 1;
+                    
+                    row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${product.id}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="relative">
+                                <img src="${coverImage}" alt="${product.name}" class="w-12 h-12 rounded object-cover">
+                                ${imageCount > 1 ? `<span class="absolute -bottom-1 -right-1 bg-blue-600 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">${imageCount}</span>` : ''}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-medium text-gray-900">${product.name}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${product.model}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">¥${product.price}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            ${product.source || '-'}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button class="text-indigo-600 hover:text-indigo-900 mr-4 edit-product" data-id="${product.id}">
+                                <i class="fas fa-edit mr-1"></i>编辑
+                            </button>
+                            <button class="text-red-600 hover:text-red-900 delete-product" data-id="${product.id}" data-type="product">
+                                <i class="fas fa-trash mr-1"></i>删除
+                            </button>
+                        </td>
+                    `;
+                    elements.adminProductsTableBody.appendChild(row);
+                });
+                
+                // 为编辑和删除按钮添加事件监听
+                document.querySelectorAll('.edit-product').forEach(button => {
+                    button.addEventListener('click', () => {
+                        const id = parseInt(button.dataset.id);
+                        editProduct(id);
+                    });
+                });
+                
+                document.querySelectorAll('.delete-product').forEach(button => {
+                    button.addEventListener('click', () => {
+                        const id = parseInt(button.dataset.id);
+                        const type = button.dataset.type;
+                        showDeleteConfirm(id, type);
+                    });
+                });
+            }
+
+            // 渲染管理员用户表格
+            function renderAdminUsers(searchQuery = '') {
+                if (!verifyLoginStatus()) return;
+                
+                let filteredUsers = adminUsers;
+                
+                // 应用搜索
+                if (searchQuery) {
+                    const lowerCaseQuery = searchQuery.toLowerCase();
+                    filteredUsers = adminUsers.filter(user => 
+                        user.username.toLowerCase().includes(lowerCaseQuery)
+                    );
+                }
+                
+                elements.adminUsersTableBody.innerHTML = '';
+                
+                if (filteredUsers.length === 0) {
+                    elements.adminUsersTableBody.innerHTML = `
+                        <tr>
+                            <td colspan="3" class="px-6 py-10 text-center text-gray-500">
+                                <i class="fas fa-search text-3xl mb-2"></i>
+                                <p>没有找到匹配的管理员</p>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                filteredUsers.forEach(user => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.id}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-medium text-gray-900">${user.username}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            ${user.username === 'admin' ? `
+                                <span class="text-gray-400"><i class="fas fa-lock mr-1"></i>系统管理员</span>
+                            ` : `
+                                <button class="text-indigo-600 hover:text-indigo-900 mr-4 edit-admin-user" data-id="${user.id}">
+                                    <i class="fas fa-edit mr-1"></i>编辑
+                                </button>
+                                <button class="text-red-600 hover:text-red-900 delete-admin-user" data-id="${user.id}" data-type="user">
+                                    <i class="fas fa-trash mr-1"></i>删除
+                                </button>
+                            `}
+                        </td>
+                    `;
+                    elements.adminUsersTableBody.appendChild(row);
+                });
+                
+                // 为用户操作按钮添加事件监听
+                document.querySelectorAll('.edit-admin-user').forEach(button => {
+                    button.addEventListener('click', () => {
+                        const id = parseInt(button.dataset.id);
+                        editAdminUser(id);
+                    });
+                });
+                
+                document.querySelectorAll('.delete-admin-user').forEach(button => {
+                    button.addEventListener('click', () => {
+                        const id = parseInt(button.dataset.id);
+                        const type = button.dataset.type;
+                        showDeleteConfirm(id, type);
+                    });
+                });
+            }
+
+            // 显示删除确认
+            function showDeleteConfirm(id, type) {
+                if (!verifyLoginStatus()) return;
+                
+                elements.confirmModal.dataset.id = id;
+                elements.confirmModal.dataset.type = type;
+                
+                if (type === 'product') {
+                    const product = products.find(p => p.id === id);
+                    elements.confirmMessage.textContent = `您确定要删除商品"${product.name}"吗？此操作无法撤销。`;
+                } else {
+                    const user = adminUsers.find(u => u.id === id);
+                    elements.confirmMessage.textContent = `您确定要删除管理员"${user.username}"吗？此操作无法撤销。`;
+                }
+                
+                elements.confirmModal.classList.add('active');
+            }
+
+            // 执行删除操作
+            function performDelete() {
+                if (!verifyLoginStatus()) return;
+                
+                const id = parseInt(elements.confirmModal.dataset.id);
+                const type = elements.confirmModal.dataset.type;
+                
+                if (type === 'product') {
+                    products = products.filter(product => product.id !== id);
+                    renderAdminProducts(elements.adminProductSearch.value);
+                    renderUserProducts(elements.userSearch.value || elements.mobileUserSearch.value);
+                } else if (type === 'user') {
+                    // 防止删除当前登录用户
+                    if (currentAdmin && currentAdmin.id === id) {
+                        alert('不能删除当前登录的管理员账户');
+                        elements.confirmModal.classList.remove('active');
+                        return;
+                    }
+                    
+                    adminUsers = adminUsers.filter(user => user.id !== id);
+                    renderAdminUsers(elements.adminUserSearch.value);
+                }
+                
+                elements.confirmModal.classList.remove('active');
+                saveDataToLocalStorage();
+                updateDashboard();
+            }
+
+            // 打开添加商品模态框
+            function openAddProductModal() {
+                if (!verifyLoginStatus()) return;
+                
+                elements.productModalTitle.textContent = '添加商品';
+                elements.productForm.reset();
+                elements.productId.value = '';
+                elements.productImagePreview.src = 'https://picsum.photos/seed/placeholder/400/300';
+                
+                // 重置图片画廊
+                elements.productImageGallery.innerHTML = '';
+                const addBtn = document.createElement('div');
+                addBtn.className = 'add-image-btn w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center cursor-pointer border-2 border-dashed border-gray-300 hover:bg-gray-200 transition-colors';
+                addBtn.innerHTML = '<i class="fas fa-plus text-gray-400"></i>';
+                addBtn.addEventListener('click', triggerImageUpload);
+                elements.productImageGallery.appendChild(addBtn);
+                
+                elements.productError.classList.add('hidden');
+                elements.productModal.classList.add('active');
+            }
+
+            // 打开编辑商品模态框
+            function editProduct(id) {
+                if (!verifyLoginStatus()) return;
+                
+                const product = products.find(p => p.id === id);
+                if (!product) return;
+                
+                elements.productModalTitle.textContent = '编辑商品';
+                elements.productId.value = product.id;
+                document.getElementById('product-name').value = product.name;
+                document.getElementById('product-model').value = product.model;
+                document.getElementById('product-price').value = product.price;
+                document.getElementById('product-color').value = product.color;
+                document.getElementById('product-brief').value = product.brief;
+                document.getElementById('product-description').value = product.description || '';
+                elements.productUrl.value = product.url || '';
+                elements.productSource.value = product.source || '';
+                
+                // 设置图片预览和画廊
+                elements.productImageGallery.innerHTML = '';
+                
+                if (product.images && product.images.length > 0) {
+                    // 显示第一张图片作为主预览
+                    elements.productImagePreview.src = product.images[0];
+                    
+                    // 添加所有图片到画廊
+                    product.images.forEach((img, index) => {
+                        const imgEl = document.createElement('div');
+                        imgEl.className = 'relative';
+                        imgEl.innerHTML = `
+                            <img src="${img}" alt="图片 ${index + 1}" class="w-20 h-20 object-cover rounded-lg">
+                            <button type="button" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs delete-image" data-index="${index}">
+                                &times;
+                            </button>
+                        `;
+                        elements.productImageGallery.appendChild(imgEl);
+                        
+                        // 添加删除图片事件
+                        imgEl.querySelector('.delete-image').addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            const idx = parseInt(this.dataset.index);
+                            
+                            // 更新产品图片数组
+                            product.images.splice(idx, 1);
+                            
+                            // 重新渲染图片画廊
+                            editProduct(id); // 重新调用编辑函数刷新界面
+                        });
+                    });
+                } else {
+                    // 使用默认图片
+                    elements.productImagePreview.src = 'https://picsum.photos/seed/placeholder/400/300';
+                }
+                
+                // 添加"添加图片"按钮
+                const addBtn = document.createElement('div');
+                addBtn.className = 'add-image-btn w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center cursor-pointer border-2 border-dashed border-gray-300 hover:bg-gray-200 transition-colors';
+                addBtn.innerHTML = '<i class="fas fa-plus text-gray-400"></i>';
+                addBtn.addEventListener('click', triggerImageUpload);
+                elements.productImageGallery.appendChild(addBtn);
+                
+                elements.productError.classList.add('hidden');
+                elements.productModal.classList.add('active');
+            }
+
+            // 触发图片上传
+            function triggerImageUpload() {
+                elements.productImageUpload.click();
+            }
+
+            // 处理图片上传
+            function handleImageUpload(event) {
+                const files = event.target.files;
+                if (!files || files.length === 0) return;
+                
+                const productId = elements.productId.value;
+                let product = null;
+                
+                // 如果是编辑现有商品，获取商品对象
+                if (productId) {
+                    product = products.find(p => p.id === parseInt(productId));
+                    if (!product.images) {
+                        product.images = [];
+                    }
+                } else {
+                    // 如果是新商品，创建临时存储
+                    if (!window.tempProductImages) {
+                        window.tempProductImages = [];
+                    }
+                }
+                
+                // 处理每个选中的图片
+                Array.from(files).forEach(file => {
+                    // 检查文件类型
+                    if (!file.type.startsWith('image/')) {
+                        alert('请上传图片文件');
+                        return;
+                    }
+                    
+                    // 读取图片并显示预览
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        // 将图片添加到产品或临时存储
+                        if (product) {
+                            product.images.push(e.target.result);
+                        } else {
+                            window.tempProductImages.push(e.target.result);
+                        }
+                        
+                        // 重新打开编辑模态框以刷新图片显示
+                        if (productId) {
+                            editProduct(parseInt(productId));
+                        } else {
+                            // 对于新商品，更新预览和画廊
+                            elements.productImagePreview.src = window.tempProductImages[0];
+                            
+                            // 更新画廊，先移除最后一个元素（添加按钮）
+                            const gallery = elements.productImageGallery;
+                            const addBtn = gallery.lastChild;
+                            gallery.removeChild(addBtn);
+                            
+                            // 添加新图片
+                            const imgEl = document.createElement('div');
+                            imgEl.className = 'relative';
+                            imgEl.innerHTML = `
+                                <img src="${e.target.result}" alt="新图片" class="w-20 h-20 object-cover rounded-lg">
+                                <button type="button" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs delete-temp-image" data-index="${window.tempProductImages.length - 1}">
+                                    &times;
+                                </button>
+                            `;
+                            gallery.appendChild(imgEl);
+                            
+                            // 添加删除临时图片事件
+                            imgEl.querySelector('.delete-temp-image').addEventListener('click', function(e) {
+                                e.stopPropagation();
+                                const idx = parseInt(this.dataset.index);
+                                
+                                // 从临时存储中删除
+                                window.tempProductImages.splice(idx, 1);
+                                
+                                // 更新主预览
+                                if (window.tempProductImages.length > 0) {
+                                    elements.productImagePreview.src = window.tempProductImages[0];
+                                } else {
+                                    elements.productImagePreview.src = 'https://picsum.photos/seed/placeholder/400/300';
+                                }
+                                
+                                // 重新渲染画廊
+                                renderTempImageGallery();
+                            });
+                            
+                            // 重新添加添加按钮
+                            gallery.appendChild(addBtn);
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                });
+                
+                // 清空上传控件的值，允许重复上传同一文件
+                elements.productImageUpload.value = '';
+            }
+
+            // 渲染临时图片画廊（用于新商品）
+            function renderTempImageGallery() {
+                if (!window.tempProductImages) return;
+                
+                const gallery = elements.productImageGallery;
+                // 保存添加按钮
+                const addBtn = gallery.lastChild;
+                
+                // 清空画廊（保留添加按钮）
+                while (gallery.firstChild) {
+                    gallery.removeChild(gallery.firstChild);
+                }
+                
+                // 添加所有临时图片
+                window.tempProductImages.forEach((img, index) => {
+                    const imgEl = document.createElement('div');
+                    imgEl.className = 'relative';
+                    imgEl.innerHTML = `
+                        <img src="${img}" alt="新图片" class="w-20 h-20 object-cover rounded-lg">
+                        <button type="button" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs delete-temp-image" data-index="${index}">
+                            &times;
+                        </button>
+                    `;
+                    gallery.appendChild(imgEl);
+                    
+                    // 添加删除事件
+                    imgEl.querySelector('.delete-temp-image').addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const idx = parseInt(this.dataset.index);
+                        window.tempProductImages.splice(idx, 1);
+                        
+                        if (window.tempProductImages.length > 0) {
+                            elements.productImagePreview.src = window.tempProductImages[0];
+                        } else {
+                            elements.productImagePreview.src = 'https://picsum.photos/seed/placeholder/400/300';
+                        }
+                        
+                        renderTempImageGallery();
+                    });
+                });
+                
+                // 添加回添加按钮
+                gallery.appendChild(addBtn);
+            }
+
+            // 保存商品
+            function saveProduct(event) {
+                if (!verifyLoginStatus()) {
+                    event.preventDefault();
+                    return;
+                }
+                
+                event.preventDefault();
+                
+                const id = elements.productId.value;
+                const name = document.getElementById('product-name').value.trim();
+                const model = document.getElementById('product-model').value.trim();
+                const price = parseFloat(document.getElementById('product-price').value);
+                const color = document.getElementById('product-color').value.trim();
+                const brief = document.getElementById('product-brief').value.trim();
+                const description = document.getElementById('product-description').value.trim();
+                const url = elements.productUrl.value.trim();
+                const source = elements.productSource.value;
+                
+                // 验证
+                if (!name || !model || isNaN(price) || price < 0 || !color || !brief) {
+                    elements.productError.textContent = '请填写所有必填字段，且价格必须为正数';
+                    elements.productError.classList.remove('hidden');
+                    return;
+                }
+                
+                if (id) {
+                    // 更新现有商品
+                    const index = products.findIndex(p => p.id === parseInt(id));
+                    if (index !== -1) {
+                        products[index] = {
+                            ...products[index],
+                            name,
+                            model,
+                            price,
+                            color,
+                            brief,
+                            description,
+                            url,
+                            source
+                        };
+                    }
+                } else {
+                    // 添加新商品
+                    const newId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
+                    
+                    // 处理图片
+                    let images = [];
+                    if (window.tempProductImages && window.tempProductImages.length > 0) {
+                        images = [...window.tempProductImages];
+                        // 清空临时图片
+                        window.tempProductImages = [];
+                    } else {
+                        // 使用默认图片
+                        images = [`https://picsum.photos/seed/${newId}/800/600`];
+                    }
+                    
+                    products.push({
+                        id: newId,
+                        name,
+                        model,
+                        price,
+                        color,
+                        brief,
+                        description,
+                        images,
+                        url,
+                        source
+                    });
+                }
+                
+                // 关闭模态框并更新列表
+                elements.productModal.classList.remove('active');
+                renderAdminProducts(elements.adminProductSearch.value);
+                renderUserProducts(elements.userSearch.value || elements.mobileUserSearch.value);
+                saveDataToLocalStorage();
+                updateDashboard();
+            }
+
+            // 添加爬虫日志
+            function addCrawlerLog(message, type = 'info') {
+                const logEntry = document.createElement('div');
+                logEntry.className = `log-entry log-${type}`;
+                
+                const timestamp = new Date().toLocaleTimeString();
+                logEntry.innerHTML = `[${timestamp}] ${message}`;
+                
+                elements.crawlerLog.appendChild(logEntry);
+                elements.crawlerLog.scrollTop = elements.crawlerLog.scrollHeight;
+            }
+
+            // 执行自动查询 - 增强版爬虫模拟
+            async function performAutoSearch() {
+                if (!verifyLoginStatus()) return;
+                
+                const keyword = elements.searchKeyword.value.trim();
+                const count = parseInt(elements.searchCount.value);
+                const source = elements.searchSource.value;
+                
+                if (!keyword || isNaN(count) || count < 1 || count > 20) {
+                    alert('请输入有效的查询关键词和数量（1-20）');
+                    return;
+                }
+                
+                // 显示查询状态
+                elements.searchStatus.classList.remove('hidden');
+                elements.searchResultsContainer.classList.add('hidden');
+                
+                const sourceName = {
+                    'all': '多个平台',
+                    'jd': '京东',
+                    'taobao': '淘宝',
+                    'tmall': '天猫',
+                    'suning': '苏宁易购'
+                }[source] || '网络';
+                
+                elements.searchStatusText.textContent = `正在从${sourceName}查询"${keyword}"的相关商品，请稍候...`;
+                
+                // 清空日志
+                elements.crawlerLog.innerHTML = '';
+                addCrawlerLog(`开始查询关键词: ${keyword}`, 'info');
+                addCrawlerLog(`查询来源: ${sourceName}`, 'info');
+                addCrawlerLog(`计划查询数量: ${count}`, 'info');
+                
+                try {
+                    // 模拟网络请求延迟和爬虫过程
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    addCrawlerLog('已连接到服务器，开始获取数据...', 'info');
+                    
+                    // 模拟爬取页面
+                    for (let i = 1; i <= Math.min(3, count / 2); i++) {
+                        await new Promise(resolve => setTimeout(resolve, 800));
+                        addCrawlerLog(`正在爬取第${i}页搜索结果...`, 'info');
+                    }
+                    
+                    await new Promise(resolve => setTimeout(resolve, 1200));
+                    addCrawlerLog('解析商品列表完成，开始获取详情...', 'info');
+                    
+                    // 模拟获取商品详情
+                    const detailsCount = Math.min(5, count);
+                    for (let i = 1; i <= detailsCount; i++) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        addCrawlerLog(`正在获取第${i}/${count}个商品详情...`, 'info');
+                    }
+                    
+                    // 模拟获取图片
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    addCrawlerLog('正在下载商品图片...', 'info');
+                    
+                    // 生成模拟爬取结果 - 包含多张图片和来源URL
+                    searchResults = generateMockSearchResults(keyword, count, source);
+                    
+                    // 显示查询结果
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    addCrawlerLog(`成功获取${searchResults.length}条商品数据，包含多图片和来源信息`, 'success');
+                    displaySearchResults();
+                } catch (error) {
+                    elements.searchStatusText.textContent = '查询失败，请稍后重试';
+                    addCrawlerLog(`查询错误: ${error.message}`, 'error');
+                }
+            }
+
+            // 生成模拟搜索结果 - 增强版，包含多张图片和来源URL
+            function generateMockSearchResults(keyword, count, source) {
+                const sourcesMap = {
+                    'jd': '京东',
+                    'taobao': '淘宝',
+                    'tmall': '天猫',
+                    'suning': '苏宁易购',
+                    'all': ['京东', '淘宝', '天猫', '苏宁易购']
+                };
+                
+                const colors = ['黑色', '白色', '红色', '蓝色', '绿色', '银色', '金色', '灰色'];
+                const results = [];
+                
+                for (let i = 1; i <= count; i++) {
+                    const price = Math.floor(Math.random() * 9000) + 1000;
+                    const color = colors[Math.floor(Math.random() * colors.length)];
+                    const randomSeed = Math.floor(Math.random() * 10000) + i;
+                    
+                    // 随机生成2-4张图片
+                    const imageCount = Math.floor(Math.random() * 3) + 2;
+                    const images = [];
+                    for (let j = 0; j < imageCount; j++) {
+                        images.push(`https://picsum.photos/seed/${keyword}${randomSeed}${j}/800/600`);
+                    }
+                    
+                    // 确定来源
+                    let itemSource;
+                    if (source === 'all') {
+                        const sourceList = sourcesMap[source];
+                        itemSource = sourceList[Math.floor(Math.random() * sourceList.length)];
+                    } else {
+                        itemSource = sourcesMap[source];
+                    }
+                    
+                    // 生成来源URL
+                    const sourceDomains = {
+                        '京东': 'jd.com',
+                        '淘宝': 'taobao.com',
+                        '天猫': 'tmall.com',
+                        '苏宁易购': 'suning.com'
+                    };
+                    
+                    const domain = sourceDomains[itemSource] || 'example.com';
+                    const url = `https://www.${domain}/product/${keyword.replace(/\s+/g, '-')}-${i}.html`;
+                    
+                    results.push({
+                        id: `temp-${i}`,
+                        name: `${keyword} ${i}`,
+                        model: `${keyword.charAt(0).toUpperCase()}${i} Pro`,
+                        price: price,
+                        color: color,
+                        brief: `${keyword}的第${i}款产品，高性能，质量可靠`,
+                        description: `${keyword}的详细描述。这是一款高性能的${keyword}，适合各种使用场景。`,
+                        images: images,
+                        source: itemSource,
+                        url: url
+                    });
+                }
+                
+                return results;
+            }
+
+            // 显示搜索结果
+            function displaySearchResults() {
+                if (searchResults.length === 0) {
+                    elements.searchResultsContainer.classList.add('hidden');
+                    return;
+                }
+                
+                elements.resultsCount.textContent = searchResults.length;
+                elements.searchResults.innerHTML = '';
+                
+                searchResults.forEach((product, index) => {
+                    // 取第一张图片作为封面
+                    const coverImage = product.images && product.images.length > 0 
+                        ? product.images[0] 
+                        : `https://picsum.photos/seed/${index}/400/300`;
+                    
+                    // 图片数量提示
+                    const imageCountBadge = product.images && product.images.length > 1 
+                        ? `<span class="absolute bottom-3 right-3 bg-black/60 text-white text-xs px-2 py-1 rounded-full">
+                            <i class="fas fa-images mr-1"></i>${product.images.length}
+                          </span>`
+                        : '';
+                    
+                    const resultCard = document.createElement('div');
+                    resultCard.className = 'bg-white rounded-xl shadow overflow-hidden border border-gray-200';
+                    
+                    resultCard.innerHTML = `
+                        <div class="relative">
+                            <img src="${coverImage}" alt="${product.name}" class="w-full h-48 object-cover">
+                            <span class="absolute top-3 left-3 bg-gray-800/70 text-white text-xs px-2 py-1 rounded-full">
+                                ${product.source}
+                            </span>
+                            <span class="absolute top-3 right-3 bg-blue-600 text-white text-sm font-medium px-2 py-1 rounded">
+                                ¥${product.price}
+                            </span>
+                            ${imageCountBadge}
+                        </div>
+                        <div class="p-4">
+                            <h3 class="font-bold text-gray-800 mb-2">${product.name}</h3>
+                            <div class="text-sm text-gray-500 mb-1">型号: ${product.model}</div>
+                            <div class="flex items-center text-sm text-gray-500 mb-3">
+                                <span class="w-3 h-3 rounded-full inline-block mr-1" style="background-color: ${getColorCode(product.color)}"></span>
+                                <span>${product.color}</span>
+                            </div>
+                            <p class="text-gray-600 text-sm line-clamp-2 mb-3">${product.brief}</p>
+                            <div class="flex gap-2">
+                                <button class="view-search-details flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 rounded-lg text-sm" data-index="${index}">
+                                    <i class="fas fa-eye mr-1"></i>详情
+                                </button>
+                                <button class="add-from-search flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm" data-index="${index}">
+                                    <i class="fas fa-plus mr-1"></i>添加
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    elements.searchResults.appendChild(resultCard);
+                });
+                
+                elements.searchResultsContainer.classList.remove('hidden');
+                
+                // 为按钮添加事件监听
+                document.querySelectorAll('.view-search-details').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const index = parseInt(this.dataset.index);
+                        viewSearchResultDetails(index);
+                    });
+                });
+                
+                document.querySelectorAll('.add-from-search').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const index = parseInt(this.dataset.index);
+                        addFromSearchResults(index);
+                    });
+                });
+            }
+
+            // 查看搜索结果详情
+            function viewSearchResultDetails(index) {
+                if (index < 0 || index >= searchResults.length) return;
+                
+                const product = searchResults[index];
+                
+                // 填充基本信息
+                document.getElementById('detail-product-name').textContent = product.name;
+                document.getElementById('detail-product-model').textContent = product.model;
+                document.getElementById('detail-product-price').textContent = `¥${product.price}`;
+                document.getElementById('detail-product-color').textContent = product.color;
+                document.getElementById('detail-product-color-indicator').style.backgroundColor = getColorCode(product.color);
+                document.getElementById('detail-product-brief').textContent = product.brief;
+                document.getElementById('detail-product-description').textContent = product.description || '暂无详细描述';
+                
+                // 处理来源链接
+                const detailProductUrl = document.getElementById('detail-product-url');
+                const detailProductSource = document.getElementById('detail-product-source');
+                
+                detailProductUrl.href = product.url;
+                detailProductSource.textContent = product.source;
+                
+                // 处理图片画廊
+                const detailProductImage = document.getElementById('detail-product-image');
+                const detailImageGallery = document.getElementById('detail-image-gallery');
+                
+                // 清空画廊
+                detailImageGallery.innerHTML = '';
+                
+                // 设置主图为第一张
+                detailProductImage.src = product.images[0];
+                detailProductImage.alt = product.name;
+                
+                // 添加缩略图
+                product.images.forEach((img, imgIndex) => {
+                    const thumb = document.createElement('img');
+                    thumb.src = img;
+                    thumb.alt = `${product.name} 图片 ${imgIndex + 1}`;
+                    thumb.className = `gallery-thumbnail ${imgIndex === 0 ? 'active' : ''}`;
+                    thumb.dataset.index = imgIndex;
+                    
+                    thumb.addEventListener('click', () => {
+                        // 更新主图
+                        detailProductImage.src = img;
+                        
+                        // 更新活跃状态
+                        document.querySelectorAll('.gallery-thumbnail').forEach(t => {
+                            t.classList.remove('active');
+                        });
+                        thumb.classList.add('active');
+                    });
+                    
+                    detailImageGallery.appendChild(thumb);
+                });
+                
+                // 显示模态框
+                elements.productDetailModal.classList.add('active');
+            }
+
+            // 从搜索结果添加商品
+            function addFromSearchResults(index) {
+                if (index < 0 || index >= searchResults.length) return;
+                
+                const productData = searchResults[index];
+                
+                // 生成新ID
+                const newId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
+                
+                // 添加到商品库
+                products.push({
+                    id: newId,
+                    name: productData.name,
+                    model: productData.model,
+                    price: productData.price,
+                    color: productData.color,
+                    brief: productData.brief,
+                    description: productData.description,
+                    images: productData.images,
+                    url: productData.url,
+                    source: productData.source
+                });
+                
+                // 更新界面
+                renderAdminProducts(elements.adminProductSearch.value);
+                renderUserProducts(elements.userSearch.value || elements.mobileUserSearch.value);
+                saveDataToLocalStorage();
+                updateDashboard();
+                
+                // 显示成功提示
+                alert('商品已成功添加到商品库');
+            }
+
+            // 打开添加管理员模态框
+            function openAddAdminUserModal() {
+                if (!verifyLoginStatus()) return;
+                
+                elements.adminUserModalTitle.textContent = '添加管理员';
+                elements.adminUserForm.reset();
+                elements.adminUserId.value = '';
+                elements.adminUserError.classList.add('hidden');
+                elements.adminUserModal.classList.add('active');
+            }
+
+            // 打开编辑管理员模态框
+            function editAdminUser(id) {
+                if (!verifyLoginStatus()) return;
+                
+                const user = adminUsers.find(u => u.id === id);
+                if (!user) return;
+                
+                elements.adminUserModalTitle.textContent = '编辑管理员';
+                elements.adminUserId.value = user.id;
+                document.getElementById('admin-user-username').value = user.username;
+                document.getElementById('admin-user-password').value = ''; // 不显示现有密码
+                elements.adminUserError.classList.add('hidden');
+                elements.adminUserModal.classList.add('active');
+            }
+
+            // 保存管理员
+            function saveAdminUser(event) {
+                if (!verifyLoginStatus()) {
+                    event.preventDefault();
+                    return;
+                }
+                
+                event.preventDefault();
+                
+                const id = elements.adminUserId.value;
+                const username = document.getElementById('admin-user-username').value.trim();
+                const password = document.getElementById('admin-user-password').value.trim();
+                
+                // 验证
+                if (!username || !password || password.length < 6) {
+                    elements.adminUserError.textContent = '用户名不能为空，密码长度不能少于6位';
+                    elements.adminUserError.classList.remove('hidden');
+                    return;
+                }
+                
+                // 检查用户名是否已存在
+                const userExists = adminUsers.some(user => 
+                    user.username === username && (!id || user.id !== parseInt(id))
+                );
+                
+                if (userExists) {
+                    elements.adminUserError.textContent = '该用户名已存在';
+                    elements.adminUserError.classList.remove('hidden');
+                    return;
+                }
+                
+                if (id) {
+                    // 更新现有管理员
+                    const index = adminUsers.findIndex(u => u.id === parseInt(id));
+                    if (index !== -1) {
+                        adminUsers[index] = {
+                            ...adminUsers[index],
+                            username,
+                            password // 这里实际应用中应该加密存储
+                        };
+                    }
+                } else {
+                    // 添加新管理员
+                    const newId = adminUsers.length > 0 ? Math.max(...adminUsers.map(u => u.id)) + 1 : 1;
+                    adminUsers.push({
+                        id: newId,
+                        username,
+                        password // 这里实际应用中应该加密存储
+                    });
+                }
+                
+                // 关闭模态框并更新列表
+                elements.adminUserModal.classList.remove('active');
+                renderAdminUsers(elements.adminUserSearch.value);
+                saveDataToLocalStorage();
+                updateDashboard();
+            }
+
+            // 管理员登录
+            function adminLogin(event) {
+                event.preventDefault();
+                
+                const username = document.getElementById('admin-username').value.trim();
+                const password = document.getElementById('admin-password').value.trim();
+                
+                const user = adminUsers.find(u => u.username === username && u.password === password);
+                
+                if (user) {
+                    currentAdmin = { id: user.id, username: user.username };
+                    elements.currentAdminEl.textContent = user.username;
+                    saveDataToLocalStorage();
+                    showAdminPage('dashboard');
+                } else {
+                    elements.adminLoginError.textContent = '用户名或密码不正确';
+                    elements.adminLoginError.classList.remove('hidden');
+                }
+            }
+
+            // 管理员登出
+            function adminLogout() {
+                currentAdmin = null;
+                saveDataToLocalStorage();
+                showAdminLoginPage();
+            }
+
+            // 图片放大功能
+            function setupImageZoom() {
+                // 为所有主图片容器添加点击事件
+                document.addEventListener('click', function(e) {
+                    if (e.target.closest('.main-image-container')) {
+                        const img = e.target.closest('.main-image-container').querySelector('img');
+                        if (img) {
+                            elements.zoomedImage.src = img.src;
+                            elements.zoomedImage.alt = img.alt;
+                            elements.imageZoomModal.classList.add('active');
+                        }
+                    }
+                });
+                
+                // 关闭放大视图
+                elements.closeZoom.addEventListener('click', function() {
+                    elements.imageZoomModal.classList.remove('active');
+                });
+                
+                // 点击放大视图背景关闭
+                elements.imageZoomModal.addEventListener('click', function(e) {
+                    if (e.target === elements.imageZoomModal) {
+                        elements.imageZoomModal.classList.remove('active');
+                    }
+                });
+            }
+
+            // 设置所有事件监听器
+            function setupEventListeners() {
+                // 界面切换
+                elements.adminLoginBtn.addEventListener('click', () => showAdminInterface());
+                elements.backToUserBtn.addEventListener('click', () => showUserInterface());
+                
+                // 侧边栏导航
+                elements.sidebarLinks.forEach(link => {
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        showAdminPage(link.dataset.page);
+                    });
+                });
+                
+                // 移动端菜单
+                elements.mobileMenuBtn.addEventListener('click', () => {
+                    elements.mobileSidebar.classList.remove('hidden');
+                });
+                
+                elements.closeMobileSidebar.addEventListener('click', () => {
+                    elements.mobileSidebar.classList.add('hidden');
+                });
+                
+                // 登录表单
+                elements.adminLoginForm.addEventListener('submit', adminLogin);
+                
+                // 登出
+                elements.adminLogoutBtn.addEventListener('click', adminLogout);
+                
+                // 商品搜索
+                elements.userSearch.addEventListener('input', (e) => {
+                    renderUserProducts(e.target.value);
+                });
+                
+                elements.mobileUserSearch.addEventListener('input', (e) => {
+                    renderUserProducts(e.target.value);
+                });
+                
+                elements.adminProductSearch.addEventListener('input', (e) => {
+                    renderAdminProducts(e.target.value);
+                });
+                
+                elements.adminUserSearch.addEventListener('input', (e) => {
+                    renderAdminUsers(e.target.value);
+                });
+                
+                // 商品管理
+                elements.addProductBtn.addEventListener('click', openAddProductModal);
+                elements.closeProductModal.addEventListener('click', () => {
+                    elements.productModal.classList.remove('active');
+                });
+                elements.productForm.addEventListener('submit', saveProduct);
+                elements.productImageUpload.addEventListener('change', handleImageUpload);
+                elements.addImageBtn.addEventListener('click', triggerImageUpload);
+                
+                // 管理员管理
+                elements.addAdminUserBtn.addEventListener('click', openAddAdminUserModal);
+                elements.closeAdminUserModal.addEventListener('click', () => {
+                    elements.adminUserModal.classList.remove('active');
+                });
+                elements.adminUserForm.addEventListener('submit', saveAdminUser);
+                
+                // 确认删除
+                elements.cancelDelete.addEventListener('click', () => {
+                    elements.confirmModal.classList.remove('active');
+                });
+                
+                elements.confirmDelete.addEventListener('click', performDelete);
+                
+                // 关闭详情模态框
+                elements.closeDetailModal.addEventListener('click', () => {
+                    elements.productDetailModal.classList.remove('active');
+                });
+                
+                // 自动查询
+                elements.startSearchBtn.addEventListener('click', performAutoSearch);
+                
+                // 图片放大功能
+                setupImageZoom();
+            }
+
+            // 初始化应用
+            init();
+        });
+    </script>
+</body>
+</html>
+    
